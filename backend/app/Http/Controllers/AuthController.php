@@ -20,11 +20,22 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $token = $this->authService->login($request->email, $request->password);
-        if (!$token) return response()->json(['message' => 'Invalid credentials'], 401);
+        // Accept either email or username from the request
+        $identifier = $request->email ?? $request->username;
+
+        if (!$identifier) {
+            return response()->json(['message' => 'Please provide email or username.'], 400);
+        }
+
+        $token = $this->authService->login($identifier, $request->password);
+
+        if (!$token) {
+            return response()->json(['message' => 'Invalid credentials'], 401);
+        }
 
         return response()->json(['token' => $token]);
     }
+
 
     public function logout(): JsonResponse
     {

@@ -4,41 +4,81 @@ namespace App\Services;
 
 use App\DTOs\TweetDTO;
 use App\Models\Tweet;
-use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class TweetService
 {
     /**
-     * Fetch all top-level tweets, paginated 10 per page.
+     * Fetch all top-level tweets, paginated 10 per page,
+     * including replies and liked_by_users for each tweet.
      */
     public function getAllTweets(int $perPage = 10): LengthAwarePaginator
     {
-        return Tweet::with(['user', 'reacts.user', 'replies.user'])
-            ->whereNull('parent_id') // only top-level tweets
+        $tweets = Tweet::with(['user', 'reacts.user', 'replies.user', 'replies.reacts.user'])
+            ->whereNull('parent_id')
             ->latest()
             ->paginate($perPage);
+
+        return $tweets->through(fn(Tweet $tweet) => $this->transformTweet($tweet));
     }
 
     /**
-     * Fetch all top-level tweets from a specific user, paginated 10 per page.
+     * Fetch tweets for a specific user.
      */
     public function getTweetsByUser(int $userId, int $perPage = 10): LengthAwarePaginator
     {
-        return Tweet::where('user_id', $userId)
-            ->whereNull('parent_id') // only top-level
-            ->with(['reacts.user', 'replies.user'])
+        $tweets = Tweet::with(['user', 'reacts.user', 'replies.user', 'replies.reacts.user'])
+            ->where('user_id', $userId)
+            ->whereNull('parent_id')
             ->latest()
             ->paginate($perPage);
+
+        return $tweets->through(fn(Tweet $tweet) => $this->transformTweet($tweet));
     }
 
     /**
-     * Fetch a single tweet with its reacts and replies.
+     * Fetch a single tweet with likes and replies.
      */
-    public function getTweet(int $tweetId): ?Tweet
+    public function getTweet(int $tweetId): ?array
     {
-        return Tweet::with(['user', 'reacts.user', 'replies.user'])
+        $tweet = Tweet::with(['user', 'reacts.user', 'replies.user', 'replies.reacts.user'])
             ->find($tweetId);
+
+        return $tweet ? $this->transformTweet($tweet) : null;
+    }
+
+    /**
+     * Transform a tweet into array with liked_by_users.
+     */
+    private function transformTweet(Tweet $tweet): array
+    {
+        return [
+            'id' => $tweet->id,
+            'user_id' => $tweet->user_id,
+            'content' => $tweet->content,
+            'created_at' => $tweet->created_at,
+            'updated_at' => $tweet->updated_at,
+            'deleted_at' => $tweet->deleted_at,
+            'parent_id' => $tweet->parent_id,
+            'liked_by_users' => $tweet->reacts->where('is_liked', true)
+                ->map(fn($react) => [
+                    'id' => $react->user->id,
+                    'name' => $react->user->name,
+                    'username' => $react->user->username,
+                ])->values(),
+            'user' => [
+                'id' => $tweet->user->id,
+                'name' => $tweet->user->name,
+                'username' => $tweet->user->username,
+                'email' => $tweet->user->email,
+                'email_verified_at' => $tweet->user->email_verified_at,
+                'bio' => $tweet->user->bio,
+                'avatar' => $tweet->user->avatar,
+                'created_at' => $tweet->user->created_at,
+                'updated_at' => $tweet->user->updated_at,
+            ],
+            'replies' => $tweet->replies->map(fn($reply) => $this->transformTweet($reply))->values(),
+        ];
     }
 
     /**
@@ -97,16 +137,5 @@ class TweetService
         }
 
         return true;
-    }
-
-    /**
-     * Fetch latest top-level tweets for feed (default 10 per page).
-     */
-    public function getFeed(int $perPage = 10): LengthAwarePaginator
-    {
-        return Tweet::with(['user', 'reacts.user', 'replies.user'])
-            ->whereNull('parent_id') // top-level only
-            ->latest()
-            ->paginate($perPage);
     }
 }

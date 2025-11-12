@@ -10,28 +10,19 @@ class React extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'user_id',
         'tweet_id',
         'is_liked',
     ];
 
-    /**
-     * Get the user who made this reaction.
-     */
+    /** React author */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Get the tweet this reaction belongs to.
-     */
+    /** Tweet this reaction belongs to */
     public function tweet(): BelongsTo
     {
         return $this->belongsTo(Tweet::class);

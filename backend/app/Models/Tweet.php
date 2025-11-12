@@ -12,54 +12,59 @@ class Tweet extends Model
 {
     use HasFactory, SoftDeletes;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'user_id',
         'content',
-        'parent_id', // added for replies/comments
+        'parent_id',
     ];
 
-    /**
-     * Get the user who created the tweet.
-     */
+    protected $appends = ['liked_by_users']; // automatically added to JSON
+
+    /** Tweet author */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Get all reactions (likes/unlikes) for this tweet.
-     */
+    /** All reactions (likes/unlikes) */
     public function reacts(): HasMany
     {
         return $this->hasMany(React::class);
     }
 
-    /**
-     * Check if a given user liked this tweet.
-     */
-    public function isLikedBy(User $user): bool
+    /** Only likes (is_liked = true) */
+    public function likes(): HasMany
     {
-        return $this->reacts()->where('user_id', $user->id)->where('is_liked', true)->exists();
+        return $this->hasMany(React::class)->where('is_liked', true);
     }
 
-    /**
-     * Get all replies to this tweet.
-     */
+    /** Replies to this tweet */
     public function replies(): HasMany
     {
-        return $this->hasMany(Tweet::class, 'parent_id');
+        return $this->hasMany(Tweet::class, 'parent_id')->with('user', 'likes.user');
     }
 
-    /**
-     * Get the parent tweet if this is a reply.
-     */
+    /** Parent tweet if this is a reply */
     public function parent(): BelongsTo
     {
         return $this->belongsTo(Tweet::class, 'parent_id');
+    }
+
+    /** Check if a given user liked this tweet */
+    public function isLikedByUser(int $userId): bool
+    {
+        return $this->reacts()->where('user_id', $userId)->where('is_liked', true)->exists();
+    }
+
+    /** Accessor to return users who liked this tweet */
+    public function getLikedByUsersAttribute()
+    {
+        return $this->likes()->with('user')->get()->map(function ($react) {
+            return [
+                'id' => $react->user->id,
+                'name' => $react->user->name,
+                'username' => $react->user->username,
+            ];
+        });
     }
 }

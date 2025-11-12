@@ -14,31 +14,32 @@ class AuthService
      */
     public function register(UserDTO $dto): User
     {
-        $user = User::create([
+        return User::create([
             'name' => $dto->name,
+            'username' => $dto->username,
             'email' => $dto->email,
-            'password' => $dto->password, // Laravel will hash automatically if cast is set
+            'password' => Hash::make($dto->password),
         ]);
-
-        return $user;
     }
 
     /**
      * Login a user and return an API token.
+     * Can log in using either email or username.
      */
-    public function login(string $email, string $password): ?string
+    public function login(string $identifier, string $password): ?string
     {
-        if (!Auth::attempt(['email' => $email, 'password' => $password])) {
+        // Try to log in by email or username
+        $credentials = filter_var($identifier, FILTER_VALIDATE_EMAIL)
+            ? ['email' => $identifier, 'password' => $password]
+            : ['username' => $identifier, 'password' => $password];
+
+        if (!Auth::attempt($credentials)) {
             return null;
         }
 
         /** @var User $user */
         $user = Auth::user();
-
-        // Create a personal access token (Sanctum)
-        $token = $user->createToken('api-token')->plainTextToken;
-
-        return $token;
+        return $user->createToken('api-token')->plainTextToken;
     }
 
     /**
