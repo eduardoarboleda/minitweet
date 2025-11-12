@@ -20,6 +20,7 @@ class Tweet extends Model
     protected $fillable = [
         'user_id',
         'content',
+        'parent_id', // added for replies/comments
     ];
 
     /**
@@ -44,5 +45,21 @@ class Tweet extends Model
     public function isLikedBy(User $user): bool
     {
         return $this->reacts()->where('user_id', $user->id)->where('is_liked', true)->exists();
+    }
+
+    /**
+     * Get all replies to this tweet.
+     */
+    public function replies(): HasMany
+    {
+        return $this->hasMany(Tweet::class, 'parent_id');
+    }
+
+    /**
+     * Get the parent tweet if this is a reply.
+     */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(Tweet::class, 'parent_id');
     }
 }
